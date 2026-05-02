@@ -1,4 +1,4 @@
-name: HenWindows 2022 Full
+name: Windows 2022 Full with WireGuard
 
 on: workflow_dispatch
 
@@ -8,39 +8,67 @@ jobs:
     timeout-minutes: 9999
 
     steps:
-    - name: Making the Core
+    - name: Download Required Files
       run: |
         Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/start.bat -OutFile start.bat
         Invoke-WebRequest https://github.com/arifkembiri/RDP-Windows-2022-Tailscale/blob/main/wallpaper.png?raw=true -OutFile wallpaper.png
         Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/wallpaper.bat -OutFile wallpaper.bat
         Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/loop.bat -OutFile loop.bat
-    - name: Install Tailscale
+
+    - name: Install WireGuard
       run: |
-        Invoke-WebRequest -Uri https://pkgs.tailscale.com/stable/tailscale-setup-latest.exe -OutFile tailscale-setup.exe
-        Start-Process tailscale-setup.exe -ArgumentList "/quiet", "/norestart" -Wait
-    - name: Add Tailscale to PATH
-      run: |
-        [System.Environment]::SetEnvironmentVariable('PATH', $env:PATH + ";C:\Program Files\Tailscale", [System.EnvironmentVariableTarget]::Machine)
-    - name: Verify Tailscale installation with full path
-      run: |
-        & "C:\Program Files\Tailscale\tailscale.exe" version || echo "Tailscale is not installed"
-    - name: Authenticate Tailscale with full path
-      run: |
-        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey $Env:TAILSCALE_AUTHKEY
+        # دانلود WireGuard برای ویندوز
+        Invoke-WebRequest -Uri "https://download.wireguard.com/windows-client/wireguard-installer.exe" -OutFile wireguard-installer.exe
+        Start-Process -FilePath .\wireguard-installer.exe -ArgumentList "/S" -Wait
+        # اضافه کردن مسیر به PATH
+        [System.Environment]::SetEnvironmentVariable('PATH', $env:PATH + ";C:\Program Files\WireGuard", [System.EnvironmentVariableTarget]::Machine)
+
+    - name: Setup and Connect WireGuard Tunnel
       env:
-        TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
-    - name: Enable access to RDP
+        WIREGUARD_PRIVATE_KEY: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
+        WIREGUARD_ADDRESS: ${{ secrets.WIREGUARD_ADDRESS }} # مثلاً 10.0.0.2/24
+        WIREGUARD_PEER_PUBLIC_KEY: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
+        WIREGUARD_ENDPOINT: ${{ secrets.WIREGUARD_ENDPOINT }} # مثل 1.2.3.4:51820
+      run: |
+        # ایجاد فایل کانفیگ
+        $configPath = "C:\Users\runneradmin\wg0.conf"
+        @"
+        [Interface]
+        PrivateKey = $env:WIREGUARD_PRIVATE_KEY
+        Address = $env:WIREGUARD_ADDRESS
+        DNS = 1.1.1.1
+
+        [Peer]
+        PublicKey = $env:WIREGUARD_PEER_PUBLIC_KEY
+        Endpoint = $env:WIREGUARD_ENDPOINT
+        AllowedIPs = 0.0.0.0/0
+        PersistentKeepalive = 25
+        "@ | Out-File -FilePath $configPath -Encoding ascii
+
+        # اتصال به تونل
+        & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
+        Start-Sleep -Seconds 5
+
+    - name: Enable RDP Access
       run: | 
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
         copy wallpaper.png C:\Users\Public\Desktop\wallpaper.png
         copy wallpaper.bat C:\Users\Public\Desktop\wallpaper.bat
-    - name: Get Tailscale IP and RDP Access
+
+    - name: Show WireGuard Status and IP
       run: |
-        $tailscale_ip = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-        echo "Tailscale IP: $tailscale_ip"
-    - name: Start RDP session
-      run: cmd /c start.bat
-    - name: Successfully made! You can close the tab now.
-      run: cmd /c loop.bat
+        echo "WireGuard interface has been configured."
+        ipconfig /all | findstr "10.0.0."
+        echo "You can now RDP into the runner via your WireGuard server's tunnel."
+
+    - name: Start RDP session and keep alive
+      run: |
+        cmd /c start.bat
+        cmd /c loop.bat
+
+    - name: Cleanup WireGuard Tunnel
+      if: always()
+      run: |
+        & "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
