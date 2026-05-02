@@ -15,25 +15,15 @@ jobs:
           Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/wallpaper.bat -OutFile wallpaper.bat
           Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/loop.bat -OutFile loop.bat
 
-      - name: Download WireGuard Installer
-        shell: pwsh
-        run: |
-          Write-Output "Downloading WireGuard installer from alternate source..."
-          $installerUrl = "https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/main/wireguard-installer.exe"
-          $installerPath = "$env:TEMP\wireguard-installer.exe"
-          
-          try {
-            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -TimeoutSec 120
-            Write-Output "Download completed!"
-          } catch {
-            Write-Error "Failed to download WireGuard: $_"
-            exit 1
-          }
-
       - name: Install WireGuard
         shell: pwsh
         run: |
+          Write-Output "Downloading WireGuard installer from your own repo..."
+          $installerUrl = "https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/main/wireguard-installer.exe"
           $installerPath = "$env:TEMP\wireguard-installer.exe"
+          
+          Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -TimeoutSec 180
+          
           Write-Output "Installing WireGuard..."
           Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
           Start-Sleep -Seconds 15
