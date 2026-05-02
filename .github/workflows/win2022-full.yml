@@ -22,7 +22,7 @@ jobs:
           choco install wireguard -y --no-progress
           if exist "C:\Program Files\WireGuard\wireguard.exe" (echo WireGuard installed successfully!) else (echo ERROR: WireGuard installation failed! && exit 1)
 
-      - name: Setup and Connect WireGuard Tunnel
+      - name: Setup WireGuard Tunnel
         shell: pwsh
         env:
           WIREGUARD_PRIVATE_KEY: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
@@ -35,10 +35,16 @@ jobs:
           $configContent | Out-File -FilePath $configPath -Encoding ascii
           & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
           Start-Sleep -Seconds 5
-          Write-Output "WireGuard tunnel connected!"
+
+      - name: Show Your WireGuard RDP IP
+        shell: pwsh
+        run: |
           Write-Output "=========================================="
-          Write-Output "YOUR RDP IP: $env:WIREGUARD_ADDRESS"
-          Write-Output "Connect through your WireGuard server"
+          Write-Output "  WIREGUARD TUNNEL ACTIVE"
+          Write-Output "  YOUR RDP IP: ${{ secrets.WIREGUARD_ADDRESS }}"
+          Write-Output "=========================================="
+          Write-Output "Connect from your PC via WireGuard server"
+          Write-Output "Then RDP to the IP shown above"
           Write-Output "=========================================="
 
       - name: Enable RDP Access
@@ -49,7 +55,7 @@ jobs:
           copy wallpaper.png C:\Users\Public\Desktop\wallpaper.png
           copy wallpaper.bat C:\Users\Public\Desktop\wallpaper.bat
 
-      - name: Start RDP Session and Keep Alive
+      - name: Start RDP and Keep Alive
         run: |
           cmd /c start.bat
           cmd /c loop.bat
