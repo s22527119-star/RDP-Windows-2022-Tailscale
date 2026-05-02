@@ -15,25 +15,19 @@ jobs:
           Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/wallpaper.bat -OutFile wallpaper.bat
           Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/loop.bat -OutFile loop.bat
 
-      - name: Install WireGuard
-        shell: pwsh
+      - name: Install WireGuard via Chocolatey
+        shell: cmd
         run: |
-          Write-Output "Downloading WireGuard installer from your own repo..."
-          $installerUrl = "https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/main/wireguard-installer.exe"
-          $installerPath = "$env:TEMP\wireguard-installer.exe"
+          echo Installing WireGuard using Chocolatey...
+          choco install wireguard -y --no-progress
           
-          Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -TimeoutSec 180
-          
-          Write-Output "Installing WireGuard..."
-          Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
-          Start-Sleep -Seconds 15
-          
-          if (Test-Path "C:\Program Files\WireGuard\wireguard.exe") {
-            Write-Output "WireGuard installed successfully!"
-          } else {
-            Write-Error "WireGuard installation failed!"
+          if exist "C:\Program Files\WireGuard\wireguard.exe" (
+            echo WireGuard installed successfully!
+          ) else (
+            echo ERROR: WireGuard installation failed!
+            dir "C:\Program Files\WireGuard" 2>nul
             exit 1
-          }
+          )
 
       - name: Setup and Connect WireGuard Tunnel
         shell: pwsh
@@ -75,9 +69,11 @@ jobs:
 
       - name: Cleanup WireGuard
         if: always()
-        shell: pwsh
+        shell: cmd
         run: |
-          if (Test-Path "C:\Program Files\WireGuard\wireguard.exe") {
-            & "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
-            Write-Output "Cleanup completed."
-          }
+          if exist "C:\Program Files\WireGuard\wireguard.exe" (
+            "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
+            echo Cleanup completed.
+          ) else (
+            echo WireGuard not found, skipping cleanup.
+          )
