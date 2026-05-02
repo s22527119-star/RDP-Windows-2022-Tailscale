@@ -15,11 +15,39 @@ jobs:
           Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/wallpaper.bat -OutFile wallpaper.bat
           Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/loop.bat -OutFile loop.bat
 
-      - name: Install WireGuard via winget
+      - name: Install winget
         shell: pwsh
         run: |
-          winget install --id WireGuard.WireGuard --silent --accept-package-agreements --accept-source-agreements
-          Start-Sleep -Seconds 15
+          Write-Output "Checking winget availability..."
+          $wingetPath = Get-Command winget.exe -ErrorAction SilentlyContinue
+          if (-not $wingetPath) {
+            Write-Output "winget not found. Installing App Installer..."
+            $releasesUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+            $release = Invoke-RestMethod -Uri $releasesUrl
+            $asset = $release.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1
+            $downloadUrl = $asset.browser_download_url
+            Invoke-WebRequest -Uri $downloadUrl -OutFile "$env:TEMP\winget.msixbundle"
+            Add-AppxPackage -Path "$env:TEMP\winget.msixbundle"
+            Write-Output "winget installed."
+          } else {
+            Write-Output "winget found at: $($wingetPath.Source)"
+          }
+
+      - name: Install WireGuard
+        shell: pwsh
+        run: |
+          Write-Output "Installing WireGuard..."
+          $installerUrl = "https://download.wireguard.com/windows-client/wireguard-installer.exe"
+          $installerPath = "$env:TEMP\wireguard-installer.exe"
+          
+          Write-Output "Downloading WireGuard installer..."
+          Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
+          
+          Write-Output "Running WireGuard installer..."
+          Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
+          
+          Start-Sleep -Seconds 10
+          
           if (Test-Path "C:\Program Files\WireGuard\wireguard.exe") {
             Write-Output "WireGuard installed successfully!"
           } else {
@@ -68,5 +96,9 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          & "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
-          Write-Output "Cleanup completed."
+          if (Test-Path "C:\Program Files\WireGuard\wireguard.exe") {
+            & "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
+            Write-Output "Cleanup completed."
+          } else {
+            Write-Output "WireGuard not installed, skipping cleanup."
+          }
