@@ -43,14 +43,21 @@ jobs:
           Write-Output "Starting WireGuard tunnel..."
           & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
           Start-Sleep -Seconds 5
+          Write-Output "WireGuard tunnel connected successfully!"
+
+      - name: Show WireGuard IP Address
+        shell: pwsh
+        run: |
+          Write-Output "=========================================="
+          Write-Output "WIREGUARD TUNNEL ACTIVE"
+          Write-Output "=========================================="
+          Write-Output "Your RDP IP: ${{ secrets.WIREGUARD_ADDRESS }}"
+          Write-Output "=========================================="
+          Write-Output "Connect via your WireGuard server to this IP"
+          Write-Output "=========================================="
           
-          # نمایش آی‌پی وایرگارد
-          Write-Output "=========================================="
-          Write-Output "WireGuard Tunnel Connected Successfully!"
-          $wgIp = $env:WIREGUARD_ADDRESS -replace '/.*', ''
-          Write-Output "WireGuard IP: $wgIp"
-          Write-Output "Use this IP to connect via RDP through your WireGuard server"
-          Write-Output "=========================================="
+          # نمایش وضعیت وایرگارد
+          & "C:\Program Files\WireGuard\wireguard.exe" /show
 
       - name: Enable RDP Access
         run: |
