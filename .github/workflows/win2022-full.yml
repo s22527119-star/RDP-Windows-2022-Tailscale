@@ -15,39 +15,14 @@ jobs:
         Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/wallpaper.bat -OutFile wallpaper.bat
         Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/loop.bat -OutFile loop.bat
 
-    - name: Install WireGuard
-      run: |
-        # دانلود WireGuard برای ویندوز
-        Invoke-WebRequest -Uri "https://download.wireguard.com/windows-client/wireguard-installer.exe" -OutFile wireguard-installer.exe
-        Start-Process -FilePath .\wireguard-installer.exe -ArgumentList "/S" -Wait
-        # اضافه کردن مسیر به PATH
-        [System.Environment]::SetEnvironmentVariable('PATH', $env:PATH + ";C:\Program Files\WireGuard", [System.EnvironmentVariableTarget]::Machine)
-
     - name: Setup and Connect WireGuard Tunnel
-      env:
-        WIREGUARD_PRIVATE_KEY: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
-        WIREGUARD_ADDRESS: ${{ secrets.WIREGUARD_ADDRESS }} # مثلاً 10.0.0.2/24
-        WIREGUARD_PEER_PUBLIC_KEY: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
-        WIREGUARD_ENDPOINT: ${{ secrets.WIREGUARD_ENDPOINT }} # مثل 1.2.3.4:51820
-      run: |
-        # ایجاد فایل کانفیگ
-        $configPath = "C:\Users\runneradmin\wg0.conf"
-        @"
-        [Interface]
-        PrivateKey = $env:WIREGUARD_PRIVATE_KEY
-        Address = $env:WIREGUARD_ADDRESS
-        DNS = 1.1.1.1
-
-        [Peer]
-        PublicKey = $env:WIREGUARD_PEER_PUBLIC_KEY
-        Endpoint = $env:WIREGUARD_ENDPOINT
-        AllowedIPs = 0.0.0.0/0
-        PersistentKeepalive = 25
-        "@ | Out-File -FilePath $configPath -Encoding ascii
-
-        # اتصال به تونل
-        & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
-        Start-Sleep -Seconds 5
+      uses: egor-tensin/setup-wireguard@v1
+      with:
+        endpoint: ${{ secrets.WIREGUARD_ENDPOINT }}
+        interface-address: ${{ secrets.WIREGUARD_ADDRESS }}
+        interface-private-key: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
+        peer-public-key: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
+        peer-allowed-ips: 0.0.0.0/0
 
     - name: Enable RDP Access
       run: | 
@@ -57,18 +32,15 @@ jobs:
         copy wallpaper.png C:\Users\Public\Desktop\wallpaper.png
         copy wallpaper.bat C:\Users\Public\Desktop\wallpaper.bat
 
-    - name: Show WireGuard Status and IP
+    - name: Show Connection Details
       run: |
-        echo "WireGuard interface has been configured."
-        ipconfig /all | findstr "10.0.0."
-        echo "You can now RDP into the runner via your WireGuard server's tunnel."
+        Write-Output "=========================================="
+        Write-Output "WireGuard Tunnel Connected Successfully"
+        Write-Output "Runner IP: ${{ secrets.WIREGUARD_ADDRESS }}"
+        Write-Output "Connected to: ${{ secrets.WIREGUARD_ENDPOINT }}"
+        Write-Output "=========================================="
 
-    - name: Start RDP session and keep alive
+    - name: Start RDP Session and Keep Alive
       run: |
         cmd /c start.bat
         cmd /c loop.bat
-
-    - name: Cleanup WireGuard Tunnel
-      if: always()
-      run: |
-        & "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
