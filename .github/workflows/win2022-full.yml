@@ -25,7 +25,6 @@ jobs:
             echo WireGuard installed successfully!
           ) else (
             echo ERROR: WireGuard installation failed!
-            dir "C:\Program Files\WireGuard" 2>nul
             exit 1
           )
 
@@ -44,7 +43,14 @@ jobs:
           Write-Output "Starting WireGuard tunnel..."
           & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
           Start-Sleep -Seconds 5
-          Write-Output "WireGuard tunnel connected successfully!"
+          
+          # نمایش آی‌پی وایرگارد
+          Write-Output "=========================================="
+          Write-Output "WireGuard Tunnel Connected Successfully!"
+          $wgIp = $env:WIREGUARD_ADDRESS -replace '/.*', ''
+          Write-Output "WireGuard IP: $wgIp"
+          Write-Output "Use this IP to connect via RDP through your WireGuard server"
+          Write-Output "=========================================="
 
       - name: Enable RDP Access
         run: |
@@ -53,14 +59,6 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
           copy wallpaper.png C:\Users\Public\Desktop\wallpaper.png
           copy wallpaper.bat C:\Users\Public\Desktop\wallpaper.bat
-
-      - name: Show Connection Details
-        run: |
-          Write-Output "=========================================="
-          Write-Output "WireGuard Tunnel Active!"
-          Write-Output "Runner WireGuard IP: ${{ secrets.WIREGUARD_ADDRESS }}"
-          Write-Output "Connected to Endpoint: ${{ secrets.WIREGUARD_ENDPOINT }}"
-          Write-Output "=========================================="
 
       - name: Start RDP Session and Keep Alive
         run: |
@@ -74,6 +72,4 @@ jobs:
           if exist "C:\Program Files\WireGuard\wireguard.exe" (
             "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
             echo Cleanup completed.
-          ) else (
-            echo WireGuard not found, skipping cleanup.
           )
