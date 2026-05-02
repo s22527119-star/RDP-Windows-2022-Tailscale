@@ -19,10 +19,11 @@ jobs:
       uses: egor-tensin/setup-wireguard@v1
       with:
         endpoint: ${{ secrets.WIREGUARD_ENDPOINT }}
-        interface-address: ${{ secrets.WIREGUARD_ADDRESS }}
-        interface-private-key: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
-        peer-public-key: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
-        peer-allowed-ips: 0.0.0.0/0
+        endpoint_public_key: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
+        ips: ${{ secrets.WIREGUARD_ADDRESS }}
+        allowed_ips: 0.0.0.0/0
+        private_key: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
+        keepalive: 25
 
     - name: Enable RDP Access
       run: | 
