@@ -20,13 +20,7 @@ jobs:
         run: |
           echo Installing WireGuard using Chocolatey...
           choco install wireguard -y --no-progress
-          
-          if exist "C:\Program Files\WireGuard\wireguard.exe" (
-            echo WireGuard installed successfully!
-          ) else (
-            echo ERROR: WireGuard installation failed!
-            exit 1
-          )
+          if exist "C:\Program Files\WireGuard\wireguard.exe" (echo WireGuard installed successfully!) else (echo ERROR: WireGuard installation failed! && exit 1)
 
       - name: Setup and Connect WireGuard Tunnel
         shell: pwsh
@@ -39,25 +33,13 @@ jobs:
           $configPath = "$env:TEMP\wg0.conf"
           $configContent = "[Interface]`nPrivateKey = $env:WIREGUARD_PRIVATE_KEY`nAddress = $env:WIREGUARD_ADDRESS`nDNS = 1.1.1.1`n`n[Peer]`nPublicKey = $env:WIREGUARD_PEER_PUBLIC_KEY`nEndpoint = $env:WIREGUARD_ENDPOINT`nAllowedIPs = 0.0.0.0/0`nPersistentKeepalive = 25"
           $configContent | Out-File -FilePath $configPath -Encoding ascii
-          
-          Write-Output "Starting WireGuard tunnel..."
           & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
           Start-Sleep -Seconds 5
-          Write-Output "WireGuard tunnel connected successfully!"
-
-      - name: Show WireGuard IP Address
-        shell: pwsh
-        run: |
+          Write-Output "WireGuard tunnel connected!"
           Write-Output "=========================================="
-          Write-Output "WIREGUARD TUNNEL ACTIVE"
+          Write-Output "YOUR RDP IP: $env:WIREGUARD_ADDRESS"
+          Write-Output "Connect through your WireGuard server"
           Write-Output "=========================================="
-          Write-Output "Your RDP IP: ${{ secrets.WIREGUARD_ADDRESS }}"
-          Write-Output "=========================================="
-          Write-Output "Connect via your WireGuard server to this IP"
-          Write-Output "=========================================="
-          
-          # نمایش وضعیت وایرگارد
-          & "C:\Program Files\WireGuard\wireguard.exe" /show
 
       - name: Enable RDP Access
         run: |
@@ -71,12 +53,3 @@ jobs:
         run: |
           cmd /c start.bat
           cmd /c loop.bat
-
-      - name: Cleanup WireGuard
-        if: always()
-        shell: cmd
-        run: |
-          if exist "C:\Program Files\WireGuard\wireguard.exe" (
-            "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
-            echo Cleanup completed.
-          )
