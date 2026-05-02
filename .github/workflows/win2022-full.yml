@@ -19,7 +19,7 @@ jobs:
         shell: pwsh
         run: |
           Write-Output "Downloading WireGuard installer from alternate source..."
-          $installerUrl = "https://uupload.ir/view/wireguard-amd64-0.5.3_1qcg.msi/"
+          $installerUrl = "https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/main/wireguard-installer.exe"
           $installerPath = "$env:TEMP\wireguard-installer.exe"
           
           try {
