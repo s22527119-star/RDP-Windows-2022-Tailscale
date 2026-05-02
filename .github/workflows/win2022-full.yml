@@ -18,34 +18,28 @@ jobs:
       - name: Install WireGuard via Chocolatey
         shell: cmd
         run: |
-          echo Installing WireGuard using Chocolatey...
+          echo Installing WireGuard...
           choco install wireguard -y --no-progress
-          if exist "C:\Program Files\WireGuard\wireguard.exe" (echo WireGuard installed successfully!) else (echo ERROR: WireGuard installation failed! && exit 1)
+          if exist "C:\Program Files\WireGuard\wireguard.exe" (echo WireGuard installed!) else (echo ERROR! && exit 1)
 
-      - name: Setup WireGuard Tunnel
-        shell: pwsh
+      - name: Connect to WireGuard
+        shell: cmd
         env:
-          WIREGUARD_PRIVATE_KEY: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
-          WIREGUARD_ADDRESS: ${{ secrets.WIREGUARD_ADDRESS }}
-          WIREGUARD_PEER_PUBLIC_KEY: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
-          WIREGUARD_ENDPOINT: ${{ secrets.WIREGUARD_ENDPOINT }}
+          WIREGUARD_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}
         run: |
-          $configPath = "$env:TEMP\wg0.conf"
-          $configContent = "[Interface]`nPrivateKey = $env:WIREGUARD_PRIVATE_KEY`nAddress = $env:WIREGUARD_ADDRESS`nDNS = 1.1.1.1`n`n[Peer]`nPublicKey = $env:WIREGUARD_PEER_PUBLIC_KEY`nEndpoint = $env:WIREGUARD_ENDPOINT`nAllowedIPs = 0.0.0.0/0`nPersistentKeepalive = 25"
-          $configContent | Out-File -FilePath $configPath -Encoding ascii
-          & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
-          Start-Sleep -Seconds 5
+          echo Creating WireGuard config...
+          echo %WIREGUARD_CONFIG% > "%TEMP%\wg0.conf"
+          echo Starting WireGuard tunnel...
+          "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice "%TEMP%\wg0.conf"
+          echo WireGuard connected!
 
-      - name: Show Your WireGuard RDP IP
-        shell: pwsh
+      - name: Show IP Info
+        shell: cmd
         run: |
-          Write-Output "=========================================="
-          Write-Output "  WIREGUARD TUNNEL ACTIVE"
-          Write-Output "  YOUR RDP IP: ${{ secrets.WIREGUARD_ADDRESS }}"
-          Write-Output "=========================================="
-          Write-Output "Connect from your PC via WireGuard server"
-          Write-Output "Then RDP to the IP shown above"
-          Write-Output "=========================================="
+          echo ==========================================
+          echo WireGuard is now active
+          echo Check your WireGuard peer list for the IP
+          echo ==========================================
 
       - name: Enable RDP Access
         run: |
@@ -55,7 +49,7 @@ jobs:
           copy wallpaper.png C:\Users\Public\Desktop\wallpaper.png
           copy wallpaper.bat C:\Users\Public\Desktop\wallpaper.bat
 
-      - name: Start RDP and Keep Alive
+      - name: Start RDP Session and Keep Alive
         run: |
           cmd /c start.bat
           cmd /c loop.bat
