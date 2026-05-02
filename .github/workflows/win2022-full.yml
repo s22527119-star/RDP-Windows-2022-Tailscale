@@ -15,15 +15,52 @@ jobs:
         Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/wallpaper.bat -OutFile wallpaper.bat
         Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/loop.bat -OutFile loop.bat
 
+    - name: Install WireGuard via winget
+      shell: pwsh
+      run: |
+        Write-Output "Installing WireGuard using winget..."
+        winget install --id WireGuard.WireGuard --silent --accept-package-agreements --accept-source-agreements
+        
+        Write-Output "Waiting for installation to complete..."
+        Start-Sleep -Seconds 15
+        
+        # بررسی نصب
+        if (Test-Path "C:\Program Files\WireGuard\wireguard.exe") {
+            Write-Output "WireGuard installed successfully!"
+        } else {
+            Write-Error "WireGuard installation failed!"
+            exit 1
+        }
+
     - name: Setup and Connect WireGuard Tunnel
-      uses: egor-tensin/setup-wireguard@v1
-      with:
-        endpoint: ${{ secrets.WIREGUARD_ENDPOINT }}
-        endpoint_public_key: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
-        ips: ${{ secrets.WIREGUARD_ADDRESS }}
-        allowed_ips: 0.0.0.0/0
-        private_key: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
-        keepalive: 25
+      shell: pwsh
+      env:
+        WIREGUARD_PRIVATE_KEY: ${{ secrets.WIREGUARD_PRIVATE_KEY }}
+        WIREGUARD_ADDRESS: ${{ secrets.WIREGUARD_ADDRESS }}
+        WIREGUARD_PEER_PUBLIC_KEY: ${{ secrets.WIREGUARD_PEER_PUBLIC_KEY }}
+        WIREGUARD_ENDPOINT: ${{ secrets.WIREGUARD_ENDPOINT }}
+      run: |
+        $configPath = "$env:TEMP\wg0.conf"
+        
+        Write-Output "Creating WireGuard configuration..."
+        @"
+[Interface]
+PrivateKey = $env:WIREGUARD_PRIVATE_KEY
+Address = $env:WIREGUARD_ADDRESS
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = $env:WIREGUARD_PEER_PUBLIC_KEY
+Endpoint = $env:WIREGUARD_ENDPOINT
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+"@ | Out-File -FilePath $configPath -Encoding ascii
+        
+        Write-Output "Starting WireGuard tunnel..."
+        & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
+        
+        Start-Sleep -Seconds 5
+        Write-Output "WireGuard tunnel connected successfully!"
 
     - name: Enable RDP Access
       run: | 
@@ -36,12 +73,22 @@ jobs:
     - name: Show Connection Details
       run: |
         Write-Output "=========================================="
-        Write-Output "WireGuard Tunnel Connected Successfully"
-        Write-Output "Runner IP: ${{ secrets.WIREGUARD_ADDRESS }}"
-        Write-Output "Connected to: ${{ secrets.WIREGUARD_ENDPOINT }}"
+        Write-Output "WireGuard Tunnel Active!"
+        Write-Output "Runner WireGuard IP: ${{ secrets.WIREGUARD_ADDRESS }}"
+        Write-Output "Connected to Endpoint: ${{ secrets.WIREGUARD_ENDPOINT }}"
+        Write-Output "=========================================="
+        Write-Output "Access RDP through your WireGuard server"
         Write-Output "=========================================="
 
     - name: Start RDP Session and Keep Alive
       run: |
         cmd /c start.bat
         cmd /c loop.bat
+
+    - name: Cleanup WireGuard
+      if: always()
+      shell: pwsh
+      run: |
+        Write-Output "Cleaning up WireGuard tunnel..."
+        & "C:\Program Files\WireGuard\wireguard.exe" /uninstalltunnelservice wg0
+        Write-Output "Cleanup completed."
