@@ -1,4 +1,4 @@
-name: Windows 2022 RDP with localhost.run
+name: WireGuard RDP Session
 
 on: workflow_dispatch
 
@@ -8,36 +8,37 @@ jobs:
     timeout-minutes: 9999
 
     steps:
-      - name: Download Required Files
+      - name: Install WireGuard
+        shell: cmd
         run: |
-          Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/start.bat -OutFile start.bat
-          Invoke-WebRequest https://github.com/arifkembiri/RDP-Windows-2022-Tailscale/blob/main/wallpaper.png?raw=true -OutFile wallpaper.png
-          Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/wallpaper.bat -OutFile wallpaper.bat
-          Invoke-WebRequest https://raw.githubusercontent.com/arifkembiri/RDP-Windows-2022-Tailscale/refs/heads/main/loop.bat -OutFile loop.bat
+          choco install wireguard -y --no-progress
+          echo WireGuard Installed.
 
-      - name: Enable RDP
+      - name: Connect to Your WireGuard
+        shell: cmd
+        env:
+          WIREGUARD_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}
+        run: |
+          echo %WIREGUARD_CONFIG% > "%TEMP%\wg0.conf"
+          "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice "%TEMP%\wg0.conf"
+          echo Tunnel Status:
+          "C:\Program Files\WireGuard\wireguard.exe" /show
+
+      - name: Enable RDP and Set Password
+        shell: powershell
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-          net user runneradmin P@ssw0rd123!
-          copy wallpaper.png C:\Users\Public\Desktop\wallpaper.png
-          copy wallpaper.bat C:\Users\Public\Desktop\wallpaper.bat
+          # اینجا یه پسورد ساده ست می‌کنیم
+          net user runneradmin MyRDP@Pass123
+          Write-Output "RDP is Active. Use WireGuard IP to Connect."
 
-      - name: Create SSH Tunnel
-        shell: bash
+      - name: Keep Runner Alive
+        shell: powershell
         run: |
-          echo "Connecting to localhost.run..."
-          ssh -o StrictHostKeyChecking=no -R 3389:localhost:3389 nokey@localhost.run 2>&1 | tee ssh_output.txt &
-          sleep 10
-          cat ssh_output.txt
-          echo "================================"
-          echo "Look above for your RDP address"
-          echo "Use username: runneradmin"
-          echo "Password: P@ssw0rd123!"
-          echo "================================"
-
-      - name: Keep Alive
-        run: |
-          cmd /c start.bat
-          cmd /c loop.bat
+          Write-Output "RDP Connection Info:"
+          Write-Output "Username: runneradmin"
+          Write-Output "Password: MyRDP@Pass123"
+          Write-Output "Connect through your WireGuard network to this runner's IP"
+          while ($true) { Start-Sleep -Seconds 60 }
