@@ -1,78 +1,35 @@
-name: WireGuard RDP Tunnel
+name: Direct RDP Test
 
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: windows-2022
-    timeout-minutes: 9999
+    timeout-minutes: 120
 
     steps:
-      - name: Install WireGuard
+      - name: Enable RDP and Set Password
         shell: cmd
         run: |
-          echo Installing WireGuard...
-          choco install wireguard -y --no-progress
-          echo Installation complete.
+          reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+          netsh advfirewall firewall set rule group="Remote Desktop" new enable=Yes
+          net user runneradmin Test12345
 
-      - name: Setup Configuration and Connect
-        shell: powershell
-        env:
-          WIREGUARD_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}
+      - name: Get Public IP
+        shell: cmd
         run: |
-          # ذخیره کانفیگ در فایل
-          $configPath = "$env:TEMP\mywg.conf"
-          $env:WIREGUARD_CONFIG | Out-File -FilePath $configPath -Encoding UTF8
-          
-          Write-Output "Config file created. Connecting..."
-          
-          # نصب سرویس تونل
-          & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
-          
-          Start-Sleep -Seconds 5
-          
-          # نمایش وضعیت
-          Write-Output "Connection status:"
-          & "C:\Program Files\WireGuard\wireguard.exe" /show
-          
-          Write-Output "WireGuard tunnel should be active now."
+          curl -s https://api.ipify.org
+          echo.
+          echo ==========================================
+          echo RDP Connection Info:
+          echo IP: (Look above this line)
+          echo Port: 3389
+          echo Username: runneradmin
+          echo Password: Test12345
+          echo ==========================================
 
-      - name: Enable RDP Access
-        shell: powershell
+      - name: Keep Alive
+        shell: cmd
         run: |
-          Write-Output "Enabling Remote Desktop..."
-          
-          # تنظیمات رجیستری
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          
-          # تنظیم یوزر و پسورد
-          net user runneradmin TestRDP@2024
-          
-          Write-Output "RDP enabled successfully."
-          Write-Output "Username: runneradmin"
-          Write-Output "Password: TestRDP@2024"
-
-      - name: Show Connection Details
-        shell: powershell
-        run: |
-          Write-Output "=========================================="
-          Write-Output "YOUR WIREGUARD CONFIG CONTENT:"
-          Write-Output "=========================================="
-          # نشون دادن آیپی از کانفیگ
-          $config = Get-Content "$env:TEMP\mywg.conf"
-          $addressLine = $config | Select-String "Address"
-          Write-Output $addressLine
-          Write-Output "=========================================="
-          Write-Output "Connect to this IP from your WireGuard network"
-          Write-Output "Then use RDP to connect"
-          Write-Output "=========================================="
-
-      - name: Keep Alive Loop
-        shell: powershell
-        run: |
-          Write-Output "Keeping session alive..."
-          while ($true) { 
-            Write-Output "." -NoNewline
-            Start-Sleep -Seconds 60 
-          }
+          echo Keeping session alive for 2 hours...
+          ping -n 7200 127.0.0.1 > nul
