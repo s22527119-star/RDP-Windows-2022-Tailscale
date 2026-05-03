@@ -1,4 +1,4 @@
-name: WireGuard RDP Session
+name: WireGuard RDP Tunnel
 
 on: workflow_dispatch
 
@@ -11,34 +11,68 @@ jobs:
       - name: Install WireGuard
         shell: cmd
         run: |
+          echo Installing WireGuard...
           choco install wireguard -y --no-progress
-          echo WireGuard Installed.
+          echo Installation complete.
 
-      - name: Connect to Your WireGuard
-        shell: cmd
+      - name: Setup Configuration and Connect
+        shell: powershell
         env:
           WIREGUARD_CONFIG: ${{ secrets.WIREGUARD_CONFIG }}
         run: |
-          echo %WIREGUARD_CONFIG% > "%TEMP%\wg0.conf"
-          "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice "%TEMP%\wg0.conf"
-          echo Tunnel Status:
-          "C:\Program Files\WireGuard\wireguard.exe" /show
+          # ذخیره کانفیگ در فایل
+          $configPath = "$env:TEMP\mywg.conf"
+          $env:WIREGUARD_CONFIG | Out-File -FilePath $configPath -Encoding UTF8
+          
+          Write-Output "Config file created. Connecting..."
+          
+          # نصب سرویس تونل
+          & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice $configPath
+          
+          Start-Sleep -Seconds 5
+          
+          # نمایش وضعیت
+          Write-Output "Connection status:"
+          & "C:\Program Files\WireGuard\wireguard.exe" /show
+          
+          Write-Output "WireGuard tunnel should be active now."
 
-      - name: Enable RDP and Set Password
+      - name: Enable RDP Access
         shell: powershell
         run: |
+          Write-Output "Enabling Remote Desktop..."
+          
+          # تنظیمات رجیستری
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-          # اینجا یه پسورد ساده ست می‌کنیم
-          net user runneradmin MyRDP@Pass123
-          Write-Output "RDP is Active. Use WireGuard IP to Connect."
+          
+          # تنظیم یوزر و پسورد
+          net user runneradmin TestRDP@2024
+          
+          Write-Output "RDP enabled successfully."
+          Write-Output "Username: runneradmin"
+          Write-Output "Password: TestRDP@2024"
 
-      - name: Keep Runner Alive
+      - name: Show Connection Details
         shell: powershell
         run: |
-          Write-Output "RDP Connection Info:"
-          Write-Output "Username: runneradmin"
-          Write-Output "Password: MyRDP@Pass123"
-          Write-Output "Connect through your WireGuard network to this runner's IP"
-          while ($true) { Start-Sleep -Seconds 60 }
+          Write-Output "=========================================="
+          Write-Output "YOUR WIREGUARD CONFIG CONTENT:"
+          Write-Output "=========================================="
+          # نشون دادن آیپی از کانفیگ
+          $config = Get-Content "$env:TEMP\mywg.conf"
+          $addressLine = $config | Select-String "Address"
+          Write-Output $addressLine
+          Write-Output "=========================================="
+          Write-Output "Connect to this IP from your WireGuard network"
+          Write-Output "Then use RDP to connect"
+          Write-Output "=========================================="
+
+      - name: Keep Alive Loop
+        shell: powershell
+        run: |
+          Write-Output "Keeping session alive..."
+          while ($true) { 
+            Write-Output "." -NoNewline
+            Start-Sleep -Seconds 60 
+          }
